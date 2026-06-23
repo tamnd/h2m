@@ -1,0 +1,14 @@
+h2m
+
+This product depends on software developed by third parties:
+
+go-trafilatura (https://github.com/markusmobius/go-trafilatura)
+  Licensed under the Apache License, Version 2.0.
+  Used for main-content extraction, including its Readability and DomDistiller
+  fallback algorithms.
+
+go-readability (https://github.com/go-shiori/go-readability)
+  A Go port of Mozilla's Readability.js. Used by the ConvertFast path.
+
+html-to-markdown (https://github.com/JohannesKaufmann/html-to-markdown)
+  Licensed under the MIT License. Used by the ConvertFast rendering path.
