@@ -11,7 +11,7 @@ import (
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/base"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/commonmark"
 	readability "github.com/go-shiori/go-readability"
-	trafilatura "github.com/markusmobius/go-trafilatura"
+	trafilatura "github.com/tamnd/go-trafilatura"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 	htmlcharset "golang.org/x/net/html/charset"
@@ -70,6 +70,13 @@ func ConvertWithOptions(rawHTML []byte, pageURL string, convertOpts ConvertOptio
 	// whole document and accounts for roughly 40% of trafilatura's time, while
 	// Result does not surface a date anyway. Disabling it is the biggest speedup.
 	opts.HtmlDateMode = trafilatura.Disabled
+	// We hand trafilatura a freshly parsed tree that we never reuse afterwards,
+	// so let it mutate in place instead of cloning the input defensively. And we
+	// only read Metadata.Title (Language is recomputed from the body), so skip
+	// the author/sitename/category/tag/license DOM scans. Both keep the extracted
+	// content byte-identical; together they roughly halve per-page convert time.
+	opts.OwnDocument = true
+	opts.TitleOnlyMetadata = true
 
 	if pageURL != "" {
 		if u, err := url.Parse(pageURL); err == nil {

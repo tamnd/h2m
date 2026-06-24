@@ -5,7 +5,6 @@ go 1.26.4
 require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.2
 	github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
-	github.com/markusmobius/go-trafilatura v1.12.2
 	golang.org/x/net v0.56.0
 	golang.org/x/text v0.38.0
 )
@@ -29,6 +28,7 @@ require (
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
+	github.com/tamnd/go-trafilatura v1.14.0
 	github.com/tetratelabs/wazero v1.8.1 // indirect
 	github.com/wasilibs/go-re2 v1.7.0 // indirect
 	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
