@@ -1,3 +1,7 @@
 *.test
 *.out
 /dist/
+/testdata/corpus/
+/testdata/corpus.tgz
+/testdata/corpus_index.tsv
+*.pprof

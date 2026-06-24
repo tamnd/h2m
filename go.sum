@@ -37,8 +37,6 @@ github.com/markusmobius/go-domdistiller v0.0.0-20240926050704-25b8d046ffb4 h1:+7
 github.com/markusmobius/go-domdistiller v0.0.0-20240926050704-25b8d046ffb4/go.mod h1:E7PoeC3nd4GqtxP1A64v7JDBxpAbpTSnhlq9/DHmQ28=
 github.com/markusmobius/go-htmldate v1.9.1 h1:0kfVz0wdxGCBaotWNzdtIZKhy7+8ClBlzvANQ67Rlt8=
 github.com/markusmobius/go-htmldate v1.9.1/go.mod h1:fLls4rjQDxYR+Pxhf0YR6Ht8dEeHd4SxK/NPaVqhMa8=
-github.com/markusmobius/go-trafilatura v1.12.2 h1:JgEto0kDjwTuyXFl6TB+psrs1QGJqTdYJEbLhDy1vrw=
-github.com/markusmobius/go-trafilatura v1.12.2/go.mod h1:2WnYLuvGBgJAarHaAQnsvofihEojt2xDDrtVJU5UXZI=
 github.com/mattn/go-colorable v0.1.13 h1:fFA4WZxdEF4tXPZVKMLwD8oUnCTTo08duU7wxecdEvA=
 github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovkB8vQcUbaXHg=
 github.com/mattn/go-isatty v0.0.16/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/yFXSvRLM=
@@ -64,6 +62,8 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
+github.com/tamnd/go-trafilatura v1.13.0 h1:YMkYaOfMS7BAZnu+kQ1wYSdosoD2pso8PLgonwp1WZ4=
+github.com/tamnd/go-trafilatura v1.13.0/go.mod h1:ydzro/QvonlPkmDmcJuDPcE+VlSkumqrJSb14vccqvg=
 github.com/tetratelabs/wazero v1.8.1 h1:NrcgVbWfkWvVc4UtT4LRLDf91PsOzDzefMdwhLfA550=
 github.com/tetratelabs/wazero v1.8.1/go.mod h1:yAI0XTsMBhREkM/YDAK/zNou3GoiAce1P6+rp/wQhjs=
 github.com/wasilibs/go-re2 v1.7.0 h1:bYhl8gn+a9h01dxwotNycxkiFPTiSgwUrIz8KZJ90Lc=
