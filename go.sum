@@ -62,8 +62,8 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/tamnd/go-trafilatura v1.13.0 h1:YMkYaOfMS7BAZnu+kQ1wYSdosoD2pso8PLgonwp1WZ4=
-github.com/tamnd/go-trafilatura v1.13.0/go.mod h1:ydzro/QvonlPkmDmcJuDPcE+VlSkumqrJSb14vccqvg=
+github.com/tamnd/go-trafilatura v1.14.0 h1:pjklCmgakuGlzkd/vDTMXvcJO5MhWr2wNMTt8w/mCfA=
+github.com/tamnd/go-trafilatura v1.14.0/go.mod h1:ydzro/QvonlPkmDmcJuDPcE+VlSkumqrJSb14vccqvg=
 github.com/tetratelabs/wazero v1.8.1 h1:NrcgVbWfkWvVc4UtT4LRLDf91PsOzDzefMdwhLfA550=
 github.com/tetratelabs/wazero v1.8.1/go.mod h1:yAI0XTsMBhREkM/YDAK/zNou3GoiAce1P6+rp/wQhjs=
 github.com/wasilibs/go-re2 v1.7.0 h1:bYhl8gn+a9h01dxwotNycxkiFPTiSgwUrIz8KZJ90Lc=
