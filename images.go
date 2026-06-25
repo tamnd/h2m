@@ -85,43 +85,103 @@ func collectArticleImages(doc *html.Node, pageURL string) []mdImage {
 	return out
 }
 
+// insertMissingImagesInline splices each image the Markdown renderer dropped
+// back in after the text block it followed in the source. It is a single-pass
+// rewrite of an algorithm that used to re-split and re-join the whole document
+// once per image (O(images x doc) time, and with a block cache O(images x doc)
+// memory, which OOM-killed bulk runs). The output is byte-for-byte identical to
+// that algorithm.
+//
+// The equivalence rests on two facts about the old loop. First, it only ever
+// appended an image after a matched block, so the document's original blocks
+// never reordered. Second, an inserted image line normalises to empty text, and
+// a preceding block is never empty (the caller skips those), so an inserted
+// image block could never become a match. Together these mean the block a given
+// preceding block matches is fixed for the whole run, so every image can be
+// resolved against the blocks computed once here.
 func insertMissingImagesInline(md string, images []mdImage) string {
 	if len(images) == 0 {
 		return md
 	}
-	out := md
+
+	// Split and normalise the document once. exact maps a normalised block to
+	// the first block index that produced it, which is the index the old exact
+	// pass would have matched; matchText keeps every block's normalised text for
+	// the rarer substring fallback.
+	blocks := strings.Split(md, "\n\n")
+	matchText := make([]string, len(blocks))
+	exact := make(map[string]int, len(blocks))
+	for i, block := range blocks {
+		mt := normalizeTextForMatch(blockContainsNoImages(block))
+		matchText[i] = mt
+		if _, ok := exact[mt]; !ok {
+			exact[mt] = i
+		}
+	}
+
+	// appended[i] is the image markdown to emit after block i, in final order.
+	// When several images target one block the old loop matched the block text
+	// each time and inserted the new image between the text and the images
+	// already there, reversing their input order; prepending reproduces that.
+	appended := make([][]string, len(blocks))
+	// inserted accumulates every placed image's markdown so the dedup check can
+	// see images added earlier in this pass, matching the old check against the
+	// growing document. A URL never spans a block boundary, so scanning the
+	// original text and the placed-image text separately equals scanning the
+	// whole document. Builder.String() is allocation-free, so the per-image
+	// scan adds no garbage.
+	var inserted strings.Builder
+
 	for _, img := range images {
-		if img.URL == "" || strings.Contains(out, img.URL) {
+		if img.URL == "" || img.PrecedingBlock == "" {
 			continue
 		}
-		if img.PrecedingBlock == "" {
+		if strings.Contains(md, img.URL) || strings.Contains(inserted.String(), img.URL) {
 			continue
+		}
+		idx, ok := exact[img.PrecedingBlock]
+		if !ok {
+			idx = -1
+			for i, mt := range matchText {
+				if strings.Contains(mt, img.PrecedingBlock) {
+					idx = i
+					break
+				}
+			}
+			if idx < 0 {
+				continue
+			}
 		}
 		imageMD := renderMarkdownImage(img)
-		out = insertImageAfterMatchingBlock(out, img.PrecedingBlock, imageMD)
+		appended[idx] = append([]string{imageMD}, appended[idx]...)
+		inserted.WriteByte('\n')
+		inserted.WriteString(imageMD)
 	}
-	return out
+
+	// Reassemble. Only blocks that received an image are rewritten (trailing
+	// newlines trimmed, then images appended), exactly as the old loop did to a
+	// matched block; untouched blocks are emitted verbatim.
+	var out strings.Builder
+	out.Grow(len(md) + inserted.Len())
+	for i, block := range blocks {
+		if i > 0 {
+			out.WriteString("\n\n")
+		}
+		if len(appended[i]) == 0 {
+			out.WriteString(block)
+			continue
+		}
+		out.WriteString(strings.TrimRight(block, "\n"))
+		for _, imageMD := range appended[i] {
+			out.WriteString("\n\n")
+			out.WriteString(imageMD)
+		}
+	}
+	return out.String()
 }
 
 func renderMarkdownImage(img mdImage) string {
 	return "![" + escapeAltText(img.Alt) + "](" + markdownDestination(img.URL) + ")"
-}
-
-func insertImageAfterMatchingBlock(md, precedingBlock, imageMD string) string {
-	blocks := strings.Split(md, "\n\n")
-	for i, block := range blocks {
-		if normalizeTextForMatch(blockContainsNoImages(block)) == precedingBlock {
-			blocks[i] = strings.TrimRight(block, "\n") + "\n\n" + imageMD
-			return strings.Join(blocks, "\n\n")
-		}
-	}
-	for i, block := range blocks {
-		if strings.Contains(normalizeTextForMatch(blockContainsNoImages(block)), precedingBlock) {
-			blocks[i] = strings.TrimRight(block, "\n") + "\n\n" + imageMD
-			return strings.Join(blocks, "\n\n")
-		}
-	}
-	return md
 }
 
 func blockContainsNoImages(block string) string {
