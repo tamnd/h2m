@@ -3,7 +3,6 @@ package h2m
 import (
 	"net/url"
 	"strings"
-	"unicode"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -44,23 +43,7 @@ func collectArticleImages(doc *html.Node, pageURL string) []mdImage {
 
 	seen := make(map[string]struct{})
 	var out []mdImage
-	// Track the most recent non-empty text block as a node, not as normalized
-	// text. Computing normalizeTextForMatch(textContent(n)) eagerly for every
-	// block is the single largest cost in bulk conversion, yet precedingBlock is
-	// only ever read when an <img> follows. Defer the normalize until an image
-	// actually needs it, and cache the result so several images sharing one
-	// preceding block normalize it once. hasNonSpaceText keeps the "non-empty"
-	// rule byte-identical to the eager version without allocating.
-	var blockNode *html.Node
-	var blockText string
-	var blockDone bool
-	precedingBlock := func() string {
-		if blockNode != nil && !blockDone {
-			blockText = normalizeTextForMatch(textContent(blockNode))
-			blockDone = true
-		}
-		return blockText
-	}
+	var precedingBlock string
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n == nil {
@@ -74,9 +57,8 @@ func collectArticleImages(doc *html.Node, pageURL string) []mdImage {
 		}
 		switch n.DataAtom {
 		case atom.P, atom.H1, atom.H2, atom.H3, atom.H4, atom.H5, atom.H6, atom.Li:
-			if hasNonSpaceText(n) {
-				blockNode = n
-				blockDone = false
+			if text := normalizeTextForMatch(textContent(n)); text != "" {
+				precedingBlock = text
 			}
 		case atom.Img:
 			src := firstNonEmptyAttr(n, "src", "data-src", "data-original", "data-lazy-src")
@@ -90,7 +72,7 @@ func collectArticleImages(doc *html.Node, pageURL string) []mdImage {
 					out = append(out, mdImage{
 						Alt:            strings.TrimSpace(getAttr(n, "alt")),
 						URL:            resolved,
-						PrecedingBlock: precedingBlock(),
+						PrecedingBlock: precedingBlock,
 					})
 				}
 			}
@@ -103,64 +85,103 @@ func collectArticleImages(doc *html.Node, pageURL string) []mdImage {
 	return out
 }
 
+// insertMissingImagesInline splices each image the Markdown renderer dropped
+// back in after the text block it followed in the source. It is a single-pass
+// rewrite of an algorithm that used to re-split and re-join the whole document
+// once per image (O(images x doc) time, and with a block cache O(images x doc)
+// memory, which OOM-killed bulk runs). The output is byte-for-byte identical to
+// that algorithm.
+//
+// The equivalence rests on two facts about the old loop. First, it only ever
+// appended an image after a matched block, so the document's original blocks
+// never reordered. Second, an inserted image line normalises to empty text, and
+// a preceding block is never empty (the caller skips those), so an inserted
+// image block could never become a match. Together these mean the block a given
+// preceding block matches is fixed for the whole run, so every image can be
+// resolved against the blocks computed once here.
 func insertMissingImagesInline(md string, images []mdImage) string {
 	if len(images) == 0 {
 		return md
 	}
-	out := md
-	// normCache memoizes normalizeTextForMatch(blockContainsNoImages(block))
-	// keyed by the raw block text. Each inserted image rewrites only one block
-	// and appends one image block, so re-splitting the document for the next
-	// image yields almost entirely identical block strings. Without the cache,
-	// every image re-normalizes every block (an O(images x blocks) Fields+Join
-	// over the whole document) which dominates bulk-conversion CPU. The cache
-	// returns the identical value for identical block text, so the output is
-	// byte-for-byte unchanged.
-	normCache := make(map[string]string)
+
+	// Split and normalise the document once. exact maps a normalised block to
+	// the first block index that produced it, which is the index the old exact
+	// pass would have matched; matchText keeps every block's normalised text for
+	// the rarer substring fallback.
+	blocks := strings.Split(md, "\n\n")
+	matchText := make([]string, len(blocks))
+	exact := make(map[string]int, len(blocks))
+	for i, block := range blocks {
+		mt := normalizeTextForMatch(blockContainsNoImages(block))
+		matchText[i] = mt
+		if _, ok := exact[mt]; !ok {
+			exact[mt] = i
+		}
+	}
+
+	// appended[i] is the image markdown to emit after block i, in final order.
+	// When several images target one block the old loop matched the block text
+	// each time and inserted the new image between the text and the images
+	// already there, reversing their input order; prepending reproduces that.
+	appended := make([][]string, len(blocks))
+	// inserted accumulates every placed image's markdown so the dedup check can
+	// see images added earlier in this pass, matching the old check against the
+	// growing document. A URL never spans a block boundary, so scanning the
+	// original text and the placed-image text separately equals scanning the
+	// whole document. Builder.String() is allocation-free, so the per-image
+	// scan adds no garbage.
+	var inserted strings.Builder
+
 	for _, img := range images {
-		if img.URL == "" || strings.Contains(out, img.URL) {
+		if img.URL == "" || img.PrecedingBlock == "" {
 			continue
 		}
-		if img.PrecedingBlock == "" {
+		if strings.Contains(md, img.URL) || strings.Contains(inserted.String(), img.URL) {
 			continue
+		}
+		idx, ok := exact[img.PrecedingBlock]
+		if !ok {
+			idx = -1
+			for i, mt := range matchText {
+				if strings.Contains(mt, img.PrecedingBlock) {
+					idx = i
+					break
+				}
+			}
+			if idx < 0 {
+				continue
+			}
 		}
 		imageMD := renderMarkdownImage(img)
-		out = insertImageAfterMatchingBlock(out, img.PrecedingBlock, imageMD, normCache)
+		appended[idx] = append([]string{imageMD}, appended[idx]...)
+		inserted.WriteByte('\n')
+		inserted.WriteString(imageMD)
 	}
-	return out
-}
 
-// blockMatchText returns normalizeTextForMatch(blockContainsNoImages(block)),
-// memoized in cache. The function is deterministic in block, so the cache only
-// skips recomputation; it never changes the result.
-func blockMatchText(block string, cache map[string]string) string {
-	if v, ok := cache[block]; ok {
-		return v
+	// Reassemble. Only blocks that received an image are rewritten (trailing
+	// newlines trimmed, then images appended), exactly as the old loop did to a
+	// matched block; untouched blocks are emitted verbatim.
+	var out strings.Builder
+	out.Grow(len(md) + inserted.Len())
+	for i, block := range blocks {
+		if i > 0 {
+			out.WriteString("\n\n")
+		}
+		if len(appended[i]) == 0 {
+			out.WriteString(block)
+			continue
+		}
+		out.WriteString(strings.TrimRight(block, "\n"))
+		for _, imageMD := range appended[i] {
+			out.WriteString("\n\n")
+			out.WriteString(imageMD)
+		}
 	}
-	v := normalizeTextForMatch(blockContainsNoImages(block))
-	cache[block] = v
-	return v
+	return out.String()
 }
 
 func renderMarkdownImage(img mdImage) string {
 	return "![" + escapeAltText(img.Alt) + "](" + markdownDestination(img.URL) + ")"
-}
-
-func insertImageAfterMatchingBlock(md, precedingBlock, imageMD string, cache map[string]string) string {
-	blocks := strings.Split(md, "\n\n")
-	for i, block := range blocks {
-		if blockMatchText(block, cache) == precedingBlock {
-			blocks[i] = strings.TrimRight(block, "\n") + "\n\n" + imageMD
-			return strings.Join(blocks, "\n\n")
-		}
-	}
-	for i, block := range blocks {
-		if strings.Contains(blockMatchText(block, cache), precedingBlock) {
-			blocks[i] = strings.TrimRight(block, "\n") + "\n\n" + imageMD
-			return strings.Join(blocks, "\n\n")
-		}
-	}
-	return md
 }
 
 func blockContainsNoImages(block string) string {
@@ -178,30 +199,6 @@ func blockContainsNoImages(block string) string {
 func normalizeTextForMatch(s string) string {
 	s = strings.ReplaceAll(s, "\u00a0", " ")
 	return strings.Join(strings.Fields(s), " ")
-}
-
-// hasNonSpaceText reports whether n's text content holds any non-whitespace
-// rune. It is the cheap, allocation-free predicate behind the lazy block
-// tracking in collectArticleImages: a block matters as a preceding block only
-// if normalizeTextForMatch would return non-empty, which is exactly when the
-// subtree contains a non-space rune (strings.Fields splits on unicode.IsSpace,
-// and \u00a0 is a unicode space). The walk stops at the first content rune, so
-// the common case touches only the first text node.
-func hasNonSpaceText(n *html.Node) bool {
-	if n.Type == html.TextNode {
-		for _, r := range n.Data {
-			if !unicode.IsSpace(r) {
-				return true
-			}
-		}
-		return false
-	}
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if hasNonSpaceText(c) {
-			return true
-		}
-	}
-	return false
 }
 
 func firstContentRoot(doc *html.Node) *html.Node {
