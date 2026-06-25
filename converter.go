@@ -45,8 +45,26 @@ type Result struct {
 	Error          string
 }
 
+// defaultFallbackMinTextSize is the primary-extraction text length, in
+// characters, at or above which the conversion skips trafilatura's external
+// fallback (go-readability plus go-domdistiller). The fallback exists to rescue
+// pages where the primary extractor came up short, but on a real corpus it is
+// the single largest CPU cost, and a primary result this long is almost never
+// improved by it. Pages below the threshold still run the full fallback, so only
+// borderline pages can shift. The value is a few multiples of trafilatura's
+// MinExtractedSize (250): well above the "rescue" floor, low enough that the
+// great majority of real articles clear it and skip the fallback.
+const defaultFallbackMinTextSize = 600
+
 type ConvertOptions struct {
 	IncludeImages bool
+	// FullFallback forces trafilatura's external fallback (go-readability plus
+	// go-domdistiller) to run on every page. The default (false) runs it only
+	// when the primary extraction is shorter than defaultFallbackMinTextSize,
+	// which is much faster on bulk corpora at a small recall cost on borderline
+	// pages. Set it when conversion quality on short pages matters more than
+	// throughput.
+	FullFallback bool
 }
 
 // Convert extracts readable content from raw HTML and converts it to Markdown.
@@ -61,6 +79,12 @@ func ConvertWithOptions(rawHTML []byte, pageURL string, convertOpts ConvertOptio
 
 	var opts trafilatura.Options
 	opts.EnableFallback = true
+	// Skip the external fallback for pages whose primary extraction is already
+	// long. FullFallback restores the always-run behaviour. See
+	// defaultFallbackMinTextSize for the rationale.
+	if !convertOpts.FullFallback {
+		opts.FallbackMinTextSize = defaultFallbackMinTextSize
+	}
 	opts.ExcludeComments = true
 	opts.IncludeLinks = true
 	opts.IncludeImages = convertOpts.IncludeImages

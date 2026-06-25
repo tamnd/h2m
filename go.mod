@@ -28,7 +28,7 @@ require (
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
-	github.com/tamnd/go-trafilatura v1.14.0
+	github.com/tamnd/go-trafilatura v1.15.0
 	github.com/tetratelabs/wazero v1.8.1 // indirect
 	github.com/wasilibs/go-re2 v1.7.0 // indirect
 	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
